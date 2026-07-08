@@ -1,0 +1,12 @@
+body {
+  background-color: #f4f6f9;
+}
+
+.progress-bar-custom {
+  transition: width 0.4s ease;
+}
+
+.lesson-list-item.completed {
+  text-decoration: line-through;
+  color: #6c757d;
+}
