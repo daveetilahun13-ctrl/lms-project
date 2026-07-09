@@ -1,87 +1,80 @@
-const bcrypt = require('bcrypt');
+const db = require('../config/db');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { createUser, findByEmail } = require('../models/userModel');
-require('dotenv').config();
 
-const SALT_ROUNDS = 10; // cost factor for bcrypt - 10 is a solid, standard default
-
-// Helper: builds a signed JWT containing the user's id and role.
-// We deliberately keep the payload small - just enough to authorize requests.
-function generateToken(user) {
-  return jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
-  );
-}
-
-// POST /api/auth/register
-async function register(req, res) {
-  try {
+const register = async (req, res) => {
     const { name, email, password, role } = req.body;
+    console.log('📝 Registration attempt:', { name, email, role });
 
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ message: 'All fields are required.' });
-    }
-    if (!['student', 'instructor'].includes(role)) {
-      return res.status(400).json({ message: 'Role must be either student or instructor.' });
-    }
-
-    const existingUser = await findByEmail(email);
-    if (existingUser) {
-      return res.status(409).json({ message: 'An account with this email already exists.' });
+    if (!name || !email || !password) {
+        console.log('❌ Validation failed: missing fields');
+        return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // Never store plain-text passwords - hash before saving.
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    const userId = await createUser(name, email, hashedPassword, role);
+    try {
+        console.log('🔍 Checking if user exists...');
+        const existing = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+        console.log('✅ User check completed');
 
-    const user = { id: userId, role };
-    const token = generateToken(user);
+        if (existing.rows.length > 0) {
+            console.log('⚠️ User already exists:', email);
+            return res.status(400).json({ message: 'User already exists' });
+        }
 
-    return res.status(201).json({
-      message: 'Registration successful.',
-      token,
-      user: { id: userId, name, email, role }
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error during registration.' });
-  }
-}
+        console.log('🔐 Hashing password...');
+        const hashedPassword = await bcrypt.hash(password, 10);
+        console.log('✅ Password hashed');
 
-// POST /api/auth/login
-async function login(req, res) {
-  try {
+        console.log('💾 Inserting user into database...');
+        const result = await db.query(
+            'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id',
+            [name, email, hashedPassword, role || 'student']
+        );
+        console.log('✅ User inserted with ID:', result.rows[0].id);
+
+        res.status(201).json({ message: 'User registered successfully' });
+    } catch (error) {
+        console.error('❌ Registration error DETAILS:', error);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+        res.status(500).json({ message: 'Server error during registration' });
+    }
+};
+
+const login = async (req, res) => {
     const { email, password } = req.body;
+    console.log('🔑 Login attempt:', { email });
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
+        return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const user = await findByEmail(email);
-    if (!user) {
-      // Same message for "no user" and "wrong password" - avoids leaking
-      // which emails are registered.
-      return res.status(401).json({ message: 'Invalid email or password.' });
+    try {
+        const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (result.rows.length === 0) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        const user = result.rows[0];
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, role: user.role },
+            process.env.JWT_SECRET || 'default_secret',
+            { expiresIn: '7d' }
+        );
+
+        res.json({
+            token,
+            user: { id: user.id, name: user.name, email: user.email, role: user.role }
+        });
+    } catch (error) {
+        console.error('❌ Login error:', error);
+        res.status(500).json({ message: 'Server error during login' });
     }
-
-    const passwordMatches = await bcrypt.compare(password, user.password);
-    if (!passwordMatches) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
-    }
-
-    const token = generateToken(user);
-
-    return res.status(200).json({
-      message: 'Login successful.',
-      token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error during login.' });
-  }
-}
+};
 
 module.exports = { register, login };
