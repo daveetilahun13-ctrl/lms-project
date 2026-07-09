@@ -3,6 +3,20 @@
 A full-stack LMS built with Node.js/Express/PostgreSQL (backend, MVC architecture,
 REST API, JWT auth) and React/React Router/Axios/Bootstrap (frontend).
 
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+  - [1. Database](#1-database)
+  - [2. Backend](#2-backend)
+  - [3. Frontend](#3-frontend)
+- [Authentication & Authorization Model](#authentication--authorization-model)
+- [API Endpoints](#api-endpoints)
+- [Database Schema](#database-schema)
+- [Notes for Graders / Reviewers](#notes-for-graders--reviewers)
+
 ## Features
 
 - User registration & login (Student / Instructor roles)
