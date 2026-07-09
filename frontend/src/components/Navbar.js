@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
@@ -11,28 +11,54 @@ export default function Navbar() {
     navigate('/login');
   }
 
+  const initials = user?.name
+    ? user.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+    : '';
+
+  const dashboardPath = user?.role === 'instructor' ? '/instructor/dashboard' : '/student/dashboard';
+
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-      <div className="container">
-        <Link className="navbar-brand" to="/">LMS</Link>
-        <div className="d-flex ms-auto">
+    <nav className="orbit-navbar mb-4">
+      <div className="container d-flex align-items-center justify-content-between">
+        <Link className="orbit-brand" to="/">
+          <span className="orbit-brand-mark">🪐</span>
+          ኑ እንማር
+        </Link>
+
+        <div className="d-flex align-items-center gap-2">
           {!user && (
             <>
-              <Link className="btn btn-outline-light me-2" to="/login">Login</Link>
-              <Link className="btn btn-light" to="/register">Register</Link>
+              <Link className="nav-ghost" to="/login">Log in</Link>
+              <Link className="nav-cta" to="/register">Get started</Link>
             </>
           )}
 
-          {user && user.role === 'student' && (
-            <Link className="btn btn-outline-light me-2" to="/student/dashboard">My Dashboard</Link>
-          )}
-          {user && user.role === 'instructor' && (
-            <Link className="btn btn-outline-light me-2" to="/instructor/dashboard">My Dashboard</Link>
-          )}
           {user && (
             <>
-              <Link className="btn btn-outline-light me-2" to="/courses">Browse Courses</Link>
-              <button className="btn btn-warning" onClick={handleLogout}>Logout</button>
+              <NavLink
+                className={({ isActive }) => `nav-pill ${isActive ? 'active' : ''}`}
+                to={dashboardPath}
+              >
+                Dashboard
+              </NavLink>
+              <NavLink
+                className={({ isActive }) => `nav-pill ${isActive ? 'active' : ''}`}
+                to="/courses"
+              >
+                Browse Courses
+              </NavLink>
+
+              <div className="avatar-chip ms-2">
+                <div className="avatar-circle">{initials}</div>
+                <div>
+                  <div className="avatar-name">{user.name}</div>
+                  <div className="avatar-role">{user.role}</div>
+                </div>
+              </div>
+
+              <button className="nav-ghost border-0 bg-transparent" onClick={handleLogout} style={{ cursor: 'pointer' }}>
+                Log out
+              </button>
             </>
           )}
         </div>
