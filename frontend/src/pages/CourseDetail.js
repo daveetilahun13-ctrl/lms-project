@@ -29,7 +29,7 @@ export default function CourseDetail() {
       try {
         const [courseRes, lessonsRes] = await Promise.all([
           api.get(`/courses/${id}`),
-          api.get(`/courses/${id}/lessons`)
+          api.get(`/lessons/course/${id}`)
         ]);
         setCourse(courseRes.data);
         setLessons(lessonsRes.data);
@@ -51,8 +51,8 @@ export default function CourseDetail() {
     }
   }
 
-  if (error) return <div className="container"><div className="alert alert-danger">{error}</div></div>;
-  if (!course) return <div className="container">Loading...</div>;
+  if (error) return <div className="page-shell"><div className="alert alert-danger">{error}</div></div>;
+  if (!course) return <div className="page-shell"><p className="text-muted">Loading...</p></div>;
 
   // Build a quick lookup of completion status per lesson (student view only)
   const completionMap = {};
@@ -61,33 +61,35 @@ export default function CourseDetail() {
   }
 
   return (
-    <div className="container">
-      <h2>{course.title}</h2>
-      <p className="text-muted">by {course.instructor_name}</p>
-      <p>{course.description}</p>
+    <div className="page-shell">
+      <div className="hero-banner">
+        <div className="eyebrow" style={{ color: '#c7d2fe' }}>Course</div>
+        <h1 style={{ color: '#fff', fontSize: '1.9rem', margin: 0 }}>{course.title}</h1>
+        <p style={{ color: 'rgba(255,255,255,0.8)', marginTop: '0.4rem', marginBottom: '1rem' }}>
+          by {course.instructor_name}
+        </p>
+        <p style={{ color: 'rgba(255,255,255,0.9)', maxWidth: 640, marginBottom: 0 }}>{course.description}</p>
 
-      {isOwner && (
-        <div className="mb-3 d-flex gap-2">
-          <Link to={`/instructor/courses/${course.id}/edit`} className="btn btn-outline-secondary btn-sm">
-            Edit Course
-          </Link>
-          <Link to={`/instructor/courses/${course.id}/lessons/new`} className="btn btn-success btn-sm">
-            + Add Lesson
-          </Link>
-        </div>
-      )}
+        {isOwner && (
+          <div className="mt-3 d-flex gap-2">
+            <Link to={`/instructor/courses/${course.id}/edit`} className="nav-ghost">Edit Course</Link>
+            <Link to={`/instructor/courses/${course.id}/lessons/new`} className="nav-cta">+ Add Lesson</Link>
+          </div>
+        )}
+      </div>
 
       {user?.role === 'student' && progress && (
-        <div className="mb-3">
-          <label className="form-label">Your progress: {progress.percent}%</label>
+        <div className="orbit-card p-3 mb-4">
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span className="fw-bold" style={{ fontSize: '0.9rem' }}>Your progress</span>
+            <span className="badge-soft badge-soft-brand">{progress.percentage}% complete</span>
+          </div>
           <div className="progress">
             <div
               className="progress-bar progress-bar-custom"
               role="progressbar"
-              style={{ width: `${progress.percent}%` }}
-            >
-              {progress.percent}%
-            </div>
+              style={{ width: `${progress.percentage}%` }}
+            />
           </div>
         </div>
       )}
@@ -98,16 +100,14 @@ export default function CourseDetail() {
         </div>
       )}
 
-      <h4 className="mt-4">Lessons</h4>
-      <ul className="list-group">
-        {lessons.map((lesson) => (
-          <li
-            key={lesson.id}
-            className={`list-group-item d-flex justify-content-between align-items-center lesson-list-item ${
-              completionMap[lesson.id] ? 'completed' : ''
-            }`}
-          >
-            <Link to={`/lessons/${lesson.id}`}>{lesson.title}</Link>
+      <h4 className="mb-3">Lessons</h4>
+      <div>
+        {lessons.map((lesson, i) => (
+          <div key={lesson.id} className={`lesson-row ${completionMap[lesson.id] ? 'completed' : ''}`}>
+            <div className="lesson-check">{completionMap[lesson.id] ? '✓' : i + 1}</div>
+            <Link to={`/lessons/${lesson.id}`} className="lesson-title flex-grow-1">
+              {lesson.title}
+            </Link>
             {isOwner && (
               <div className="d-flex gap-2">
                 <Link
@@ -121,10 +121,15 @@ export default function CourseDetail() {
                 </button>
               </div>
             )}
-          </li>
+          </div>
         ))}
-        {lessons.length === 0 && <li className="list-group-item">No lessons added yet.</li>}
-      </ul>
+        {lessons.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-state-icon">📄</div>
+            <p className="text-muted mb-0">No lessons added yet.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
