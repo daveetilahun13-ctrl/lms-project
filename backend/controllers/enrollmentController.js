@@ -1,56 +1,97 @@
-const {
-  createEnrollment, findEnrollment, getEnrollmentsByStudent, getEnrollmentsByCourse
-} = require('../models/enrollmentModel');
-const { getCourseById } = require('../models/courseModel');
+const db = require('../config/db');
 
-// POST /api/enrollments  (student only)  body: { course_id }
-async function enroll(req, res) {
-  try {
-    const { course_id } = req.body;
-    if (!course_id) return res.status(400).json({ message: 'course_id is required.' });
-
-    const course = await getCourseById(course_id);
-    if (!course) return res.status(404).json({ message: 'Course not found.' });
-
-    const existing = await findEnrollment(req.user.id, course_id);
-    if (existing) {
-      return res.status(409).json({ message: 'You are already enrolled in this course.' });
+// Enroll a student in a course
+const enroll = async (req, res) => {
+    const { courseId } = req.body;
+    const studentId = req.user.id;
+    
+    if (!courseId) {
+        return res.status(400).json({ message: 'Course ID is required' });
     }
-
-    await createEnrollment(req.user.id, course_id);
-    return res.status(201).json({ message: `Enrolled in "${course.title}" successfully.` });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error enrolling in course.' });
-  }
-}
-
-// GET /api/enrollments/my  (student only) - powers the student dashboard
-async function myEnrollments(req, res) {
-  try {
-    const enrollments = await getEnrollmentsByStudent(req.user.id);
-    return res.status(200).json(enrollments);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error fetching enrollments.' });
-  }
-}
-
-// GET /api/enrollments/course/:courseId  (instructor only, must own the course)
-async function courseEnrollments(req, res) {
-  try {
-    const course = await getCourseById(req.params.courseId);
-    if (!course) return res.status(404).json({ message: 'Course not found.' });
-    if (course.instructor_id !== req.user.id) {
-      return res.status(403).json({ message: 'You do not own this course.' });
+    
+    try {
+        // Check if course exists
+        const courseResult = await db.query(
+            'SELECT * FROM courses WHERE id = $1', [courseId]
+        );
+        if (courseResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+        
+        // Check if already enrolled
+        const existing = await db.query(
+            'SELECT * FROM enrollments WHERE student_id = $1 AND course_id = $2',
+            [studentId, courseId]
+        );
+        if (existing.rows.length > 0) {
+            return res.status(400).json({ message: 'Already enrolled in this course' });
+        }
+        
+        // Enroll
+        await db.query(
+            'INSERT INTO enrollments (student_id, course_id) VALUES ($1, $2)',
+            [studentId, courseId]
+        );
+        
+        res.status(201).json({ message: 'Enrolled successfully' });
+    } catch (error) {
+        console.error('Error enrolling:', error);
+        res.status(500).json({ message: 'Server error' });
     }
+};
 
-    const students = await getEnrollmentsByCourse(req.params.courseId);
-    return res.status(200).json(students);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error fetching course enrollments.' });
-  }
-}
+// Get all courses the logged-in student is enrolled in
+const getMyEnrollments = async (req, res) => {
+    const studentId = req.user.id;
+    try {
+        const result = await db.query(`
+            SELECT c.*, u.name as instructor_name
+            FROM courses c
+            JOIN enrollments e ON c.id = e.course_id
+            JOIN users u ON c.instructor_id = u.id
+            WHERE e.student_id = $1
+            ORDER BY e.enrolled_at DESC
+        `, [studentId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching enrollments:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
 
-module.exports = { enroll, myEnrollments, courseEnrollments };
+// Get all students enrolled in a course (instructor only, must own the course)
+const getEnrolledStudents = async (req, res) => {
+    const { courseId } = req.params;
+    const userId = req.user.id;
+    
+    try {
+        // Check ownership
+        const courseResult = await db.query(
+            'SELECT * FROM courses WHERE id = $1', [courseId]
+        );
+        if (courseResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+        if (courseResult.rows[0].instructor_id !== userId) {
+            return res.status(403).json({ message: 'Not authorized to view this course\'s students' });
+        }
+        
+        const result = await db.query(`
+            SELECT u.id, u.name, u.email, e.enrolled_at
+            FROM users u
+            JOIN enrollments e ON u.id = e.student_id
+            WHERE e.course_id = $1
+            ORDER BY e.enrolled_at DESC
+        `, [courseId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching enrolled students:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+module.exports = {
+    enroll,
+    getMyEnrollments,
+    getEnrolledStudents
+};
