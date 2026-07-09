@@ -1,118 +1,167 @@
-const {
-  createLesson, getLessonsByCourse, getLessonById, updateLesson, deleteLesson
-} = require('../models/lessonModel');
-const { getCourseById } = require('../models/courseModel');
-const { findEnrollment } = require('../models/enrollmentModel');
+const db = require('../config/db');
 
-// Helper: confirms req.user is the instructor who owns the given course.
-// Used before any lesson write operation.
-async function assertOwnsCourse(courseId, userId) {
-  const course = await getCourseById(courseId);
-  if (!course) return { ok: false, status: 404, message: 'Course not found.' };
-  if (course.instructor_id !== userId) {
-    return { ok: false, status: 403, message: 'You do not own this course.' };
-  }
-  return { ok: true, course };
-}
-
-// POST /api/courses/:courseId/lessons  (instructor, must own the course)
-async function create(req, res) {
-  try {
+// Get all lessons for a course (preview – only title, order)
+const getLessonsByCourse = async (req, res) => {
     const { courseId } = req.params;
-    const check = await assertOwnsCourse(courseId, req.user.id);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
-
-    const { title, content, video_url, order_index } = req.body;
-    if (!title) return res.status(400).json({ message: 'Title is required.' });
-
-    const lessonId = await createLesson(courseId, title, content || '', video_url || '', order_index || 0);
-    const lesson = await getLessonById(lessonId);
-
-    return res.status(201).json({ message: 'Lesson created.', lesson });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error creating lesson.' });
-  }
-}
-
-// GET /api/courses/:courseId/lessons
-// Anyone authenticated can see the lesson LIST (title/order) - this acts as a
-// course preview so students can decide whether to enroll. Full lesson
-// CONTENT is still gated in getOne() below.
-async function getByCourse(req, res) {
-  try {
-    const lessons = await getLessonsByCourse(req.params.courseId);
-    return res.status(200).json(lessons);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error fetching lessons.' });
-  }
-}
-
-// GET /api/lessons/:id  (owning instructor OR enrolled student only)
-async function getOne(req, res) {
-  try {
-    const lesson = await getLessonById(req.params.id);
-    if (!lesson) return res.status(404).json({ message: 'Lesson not found.' });
-
-    const course = await getCourseById(lesson.course_id);
-    const isOwner = course.instructor_id === req.user.id;
-
-    if (!isOwner) {
-      const enrollment = await findEnrollment(req.user.id, lesson.course_id);
-      if (!enrollment) {
-        return res.status(403).json({ message: 'You must be enrolled in this course to view this lesson.' });
-      }
+    try {
+        const result = await db.query(`
+            SELECT id, title, order_index 
+            FROM lessons 
+            WHERE course_id = $1 
+            ORDER BY order_index ASC
+        `, [courseId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching lessons:', error);
+        res.status(500).json({ message: 'Server error' });
     }
+};
 
-    return res.status(200).json(lesson);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error fetching lesson.' });
-  }
-}
+// Get single lesson (full content – only if enrolled or instructor)
+const getLessonById = async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    try {
+        // Get lesson with course info
+        const lessonResult = await db.query(`
+            SELECT l.*, c.instructor_id, c.title as course_title
+            FROM lessons l
+            JOIN courses c ON l.course_id = c.id
+            WHERE l.id = $1
+        `, [id]);
+        
+        if (lessonResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Lesson not found' });
+        }
+        
+        const lesson = lessonResult.rows[0];
+        const courseId = lesson.course_id;
+        const instructorId = lesson.instructor_id;
+        
+        // Check if user is instructor or enrolled
+        if (userRole === 'instructor' && instructorId === userId) {
+            return res.json(lesson);
+        }
+        
+        // Check enrollment
+        const enrollResult = await db.query(`
+            SELECT * FROM enrollments 
+            WHERE student_id = $1 AND course_id = $2
+        `, [userId, courseId]);
+        
+        if (enrollResult.rows.length === 0) {
+            return res.status(403).json({ message: 'You must be enrolled in this course to view the lesson' });
+        }
+        
+        res.json(lesson);
+    } catch (error) {
+        console.error('Error fetching lesson:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
 
-// PUT /api/lessons/:id  (instructor, must own the parent course)
-async function update(req, res) {
-  try {
-    const lesson = await getLessonById(req.params.id);
-    if (!lesson) return res.status(404).json({ message: 'Lesson not found.' });
-
-    const check = await assertOwnsCourse(lesson.course_id, req.user.id);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
-
+// Create a new lesson (instructor only, must own the course)
+const createLesson = async (req, res) => {
+    const { courseId } = req.params;
     const { title, content, video_url, order_index } = req.body;
-    await updateLesson(
-      req.params.id,
-      title || lesson.title,
-      content ?? lesson.content,
-      video_url ?? lesson.video_url,
-      order_index ?? lesson.order_index
-    );
-    const updated = await getLessonById(req.params.id);
+    const userId = req.user.id;
+    
+    try {
+        // Check course ownership
+        const courseResult = await db.query(
+            'SELECT * FROM courses WHERE id = $1', [courseId]
+        );
+        if (courseResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+        if (courseResult.rows[0].instructor_id !== userId) {
+            return res.status(403).json({ message: 'Not authorized to add lessons to this course' });
+        }
+        
+        const result = await db.query(`
+            INSERT INTO lessons (course_id, title, content, video_url, order_index)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+        `, [courseId, title, content, video_url, order_index || 0]);
+        
+        res.status(201).json({ 
+            message: 'Lesson created successfully',
+            lessonId: result.rows[0].id
+        });
+    } catch (error) {
+        console.error('Error creating lesson:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+// Update a lesson (instructor only, must own the course)
+const updateLesson = async (req, res) => {
+    const { id } = req.params;
+    const { title, content, video_url, order_index } = req.body;
+    const userId = req.user.id;
+    
+    try {
+        // Get lesson and check ownership via course
+        const lessonResult = await db.query(`
+            SELECT l.*, c.instructor_id 
+            FROM lessons l
+            JOIN courses c ON l.course_id = c.id
+            WHERE l.id = $1
+        `, [id]);
+        
+        if (lessonResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Lesson not found' });
+        }
+        if (lessonResult.rows[0].instructor_id !== userId) {
+            return res.status(403).json({ message: 'Not authorized to update this lesson' });
+        }
+        
+        await db.query(`
+            UPDATE lessons 
+            SET title = $1, content = $2, video_url = $3, order_index = $4
+            WHERE id = $5
+        `, [title, content, video_url, order_index, id]);
+        
+        res.json({ message: 'Lesson updated successfully' });
+    } catch (error) {
+        console.error('Error updating lesson:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
 
-    return res.status(200).json({ message: 'Lesson updated.', lesson: updated });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error updating lesson.' });
-  }
-}
+// Delete a lesson (instructor only, must own the course)
+const deleteLesson = async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    try {
+        const lessonResult = await db.query(`
+            SELECT l.*, c.instructor_id 
+            FROM lessons l
+            JOIN courses c ON l.course_id = c.id
+            WHERE l.id = $1
+        `, [id]);
+        
+        if (lessonResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Lesson not found' });
+        }
+        if (lessonResult.rows[0].instructor_id !== userId) {
+            return res.status(403).json({ message: 'Not authorized to delete this lesson' });
+        }
+        
+        await db.query('DELETE FROM lessons WHERE id = $1', [id]);
+        res.json({ message: 'Lesson deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting lesson:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
 
-// DELETE /api/lessons/:id  (instructor, must own the parent course)
-async function remove(req, res) {
-  try {
-    const lesson = await getLessonById(req.params.id);
-    if (!lesson) return res.status(404).json({ message: 'Lesson not found.' });
-
-    const check = await assertOwnsCourse(lesson.course_id, req.user.id);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
-
-    await deleteLesson(req.params.id);
-    return res.status(200).json({ message: 'Lesson deleted.' });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error deleting lesson.' });
-  }
-}
-
-module.exports = { create, getByCourse, getOne, update, remove };
+module.exports = {
+    getLessonsByCourse,
+    getLessonById,
+    createLesson,
+    updateLesson,
+    deleteLesson
+};
