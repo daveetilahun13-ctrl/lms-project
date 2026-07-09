@@ -19,7 +19,6 @@ export default function Login() {
       const res = await api.post('/auth/login', { email, password });
       login(res.data.user, res.data.token);
 
-      // Send each role to their own dashboard after login
       if (res.data.user.role === 'instructor') {
         navigate('/instructor/dashboard');
       } else {
@@ -33,37 +32,55 @@ export default function Login() {
   }
 
   return (
-    <div className="container" style={{ maxWidth: '420px' }}>
-      <h2 className="mb-4">Login</h2>
-      {error && <div className="alert alert-danger">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <label className="form-label">Email</label>
-          <input
-            type="email"
-            className="form-control"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+    <div className="auth-shell">
+      <div className="auth-visual">
+        <div className="eyebrow" style={{ color: '#a5b4fc' }}>Welcome back</div>
+        <h1 className="display-font" style={{ color: '#fff', fontSize: '2.3rem', maxWidth: 420 }}>
+          Pick up right where you left off.
+        </h1>
+        <p style={{ color: 'rgba(255,255,255,0.75)', maxWidth: 380, marginTop: '1rem' }}>
+          Track your courses, keep your progress in sync, and stay close to
+          everything your instructors are teaching.
+        </p>
+      </div>
+
+      <div className="auth-form-side">
+        <div className="auth-card">
+          <h2 className="mb-1" style={{ fontSize: '1.5rem' }}>Log in</h2>
+          <p className="text-muted mb-4" style={{ fontSize: '0.9rem' }}>
+            Enter your details to access your dashboard.
+          </p>
+          {error && <div className="alert alert-danger">{error}</div>}
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3">
+              <label className="form-label">Email</label>
+              <input
+                type="email"
+                className="form-control"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                className="form-control"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <button className="btn btn-primary w-100 mt-2" disabled={loading}>
+              {loading ? 'Logging in...' : 'Log in'}
+            </button>
+          </form>
+          <p className="mt-3 mb-0 text-center" style={{ fontSize: '0.88rem' }}>
+            New here? <Link to="/register">Create an account</Link>
+          </p>
         </div>
-        <div className="mb-3">
-          <label className="form-label">Password</label>
-          <input
-            type="password"
-            className="form-control"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <button className="btn btn-primary w-100" disabled={loading}>
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
-      <p className="mt-3">
-        Don't have an account? <Link to="/register">Register here</Link>
-      </p>
+      </div>
     </div>
   );
 }
