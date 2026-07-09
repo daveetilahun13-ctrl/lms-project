@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const verifyToken = require('../middleware/authMiddleware');
-const authorize = require('../middleware/roleMiddleware');
-const { markProgress, getCourseProgress } = require('../controllers/progressController');
+const { authenticate } = require('../middleware/authMiddleware');
+const { authorize } = require('../middleware/roleMiddleware');
+const {
+    toggleProgress,
+    getProgressByCourse
+} = require('../controllers/progressController');
 
-router.post('/', verifyToken, authorize('student'), markProgress);
-router.get('/course/:courseId', verifyToken, authorize('student'), getCourseProgress);
+router.post('/', authenticate, authorize('student'), toggleProgress);
+router.get('/course/:courseId', authenticate, authorize('student'), getProgressByCourse);
 
 module.exports = router;

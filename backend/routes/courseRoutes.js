@@ -1,18 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const verifyToken = require('../middleware/authMiddleware');
-const authorize = require('../middleware/roleMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
+const { authorize } = require('../middleware/roleMiddleware');
 const {
-  create, getAll, getMine, getOne, update, remove
+    getCourses,
+    getCourseById,
+    getMyCourses,
+    createCourse,
+    updateCourse,
+    deleteCourse
 } = require('../controllers/courseController');
 
-// Every route below requires a valid JWT (verifyToken).
-// Write operations additionally require the 'instructor' role.
-router.get('/mine', verifyToken, authorize('instructor'), getMine);
-router.get('/', verifyToken, getAll);
-router.get('/:id', verifyToken, getOne);
-router.post('/', verifyToken, authorize('instructor'), create);
-router.put('/:id', verifyToken, authorize('instructor'), update);
-router.delete('/:id', verifyToken, authorize('instructor'), remove);
+// Public routes (authenticated users)
+router.get('/', authenticate, getCourses);
+router.get('/:id', authenticate, getCourseById);
+
+// Instructor-only routes
+router.get('/instructor/mine', authenticate, authorize('instructor'), getMyCourses);
+router.post('/', authenticate, authorize('instructor'), createCourse);
+router.put('/:id', authenticate, authorize('instructor'), updateCourse);
+router.delete('/:id', authenticate, authorize('instructor'), deleteCourse);
 
 module.exports = router;
