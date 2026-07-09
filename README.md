@@ -15,7 +15,8 @@ REST API, JWT auth) and React/React Router/Axios/Bootstrap (frontend).
 - [Authentication & Authorization Model](#authentication--authorization-model)
 - [API Endpoints](#api-endpoints)
 - [Database Schema](#database-schema)
-- [Notes for Graders / Reviewers](#notes-for-graders--reviewers)
+- [Extra Features Beyond Course Scope](#extra-features-beyond-course-scope)
+
 
 ## Features
 
@@ -154,9 +155,39 @@ See `backend/database/schema.sql` for full DDL. Summary:
 - **enrollments** — id, student_id (FK → users), course_id (FK → courses), unique(student_id, course_id)
 - **lesson_progress** — id, student_id (FK → users), lesson_id (FK → lessons), completed, completed_at, unique(student_id, lesson_id)
 
-## Notes for Graders / Reviewers
+## Extra Features Beyond Course Scope
 
-- Passwords are never stored or logged in plain text (`bcrypt.hash`, 10 salt rounds).
-- JWT secret and DB credentials are kept out of source control via `.env` (gitignored); `.env.example` documents required variables.
-- Morgan logs every HTTP request (method, path, status, response time) to the console in dev mode.
-- All database access goes through parameterized queries (`$1, $2, ...` placeholders) to prevent SQL injection.
+Beyond the core CRUD requirements, this project includes several production-style
+practices not typically required for a course assignment:
+
+- **Enrollment-gated content** — lesson content is only visible to the owning
+  instructor or a student who has actually enrolled in that course, enforced
+  server-side (not just hidden in the UI).
+- **Ownership-based authorization** — instructors can only edit/delete courses
+  and lessons they personally created, checked on every write request, not
+  just role-based access.
+- **Per-lesson progress tracking with computed completion %** — students can
+  mark individual lessons complete, and the API computes an aggregate
+  completion percentage per course rather than just storing a flat boolean.
+- **JWT-based stateless auth** with a dedicated verification middleware,
+  rather than server-side sessions.
+- **Password security** via bcrypt hashing (10 salt rounds) — plaintext
+  passwords are never stored or logged.
+- **SQL injection protection** — every database query uses parameterized
+  placeholders instead of string concatenation.
+- **Environment-based configuration** — secrets (DB credentials, JWT secret)
+  are kept out of source control via `.env` / `.gitignore`, with a documented
+  `.env.example` for setup.
+- **HTTP request logging** via Morgan, useful for debugging and demonstrating
+  request/response flow during grading.
+- **Frontend route guarding** (`PrivateRoute`, `RoleRoute`) that mirrors the
+  backend's access rules for a smoother UX, while still treating the backend
+  as the actual source of truth.
+- **Custom UI theming** — a distinct visual identity (card-based layouts,
+  custom navbar styling) rather than default/unstyled Bootstrap components.
+- **Database portability** — the backend was migrated from MySQL to
+  PostgreSQL with no changes required to routes, controllers, or the
+  frontend, demonstrating a clean separation between the data layer and
+  business logic.
+
+
