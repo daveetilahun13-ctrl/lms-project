@@ -17,8 +17,6 @@ export default function LessonView() {
         const res = await api.get(`/lessons/${id}`);
         setLesson(res.data);
 
-        // Pull existing completion state so the checkbox reflects reality
-        // on load, instead of always starting unchecked.
         if (user?.role === 'student') {
           const progressRes = await api.get(`/progress/course/${res.data.course_id}`);
           const match = progressRes.data.lessons.find((l) => l.lesson_id === Number(id));
@@ -35,7 +33,7 @@ export default function LessonView() {
     setSaving(true);
     try {
       const next = !completed;
-      await api.post('/progress', { lesson_id: Number(id), completed: next });
+      await api.post('/progress', { lessonId: Number(id), completed: next });
       setCompleted(next);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not update progress.');
@@ -46,42 +44,47 @@ export default function LessonView() {
 
   if (error) {
     return (
-      <div className="container">
+      <div className="page-shell" style={{ maxWidth: 760 }}>
         <div className="alert alert-danger">{error}</div>
         <Link to="/courses" className="btn btn-outline-primary">Back to Courses</Link>
       </div>
     );
   }
-  if (!lesson) return <div className="container">Loading...</div>;
+  if (!lesson) return <div className="page-shell"><p className="text-muted">Loading...</p></div>;
 
   return (
-    <div className="container" style={{ maxWidth: '700px' }}>
-      <Link to={`/courses/${lesson.course_id}`} className="btn btn-link ps-0">&larr; Back to course</Link>
-      <h2>{lesson.title}</h2>
+    <div className="page-shell" style={{ maxWidth: 760 }}>
+      <Link to={`/courses/${lesson.course_id}`} className="nav-pill mb-3 d-inline-block" style={{ color: 'var(--brand-600)' }}>
+        &larr; Back to course
+      </Link>
 
-      {lesson.video_url && (
-        <div className="mb-3">
-          <a href={lesson.video_url} target="_blank" rel="noreferrer">Watch lesson video</a>
-        </div>
-      )}
+      <div className="orbit-card p-4">
+        <div className="eyebrow">Lesson</div>
+        <h2 className="mb-3">{lesson.title}</h2>
 
-      <p style={{ whiteSpace: 'pre-wrap' }}>{lesson.content}</p>
+        {lesson.video_url && (
+  <a
+    href={lesson.video_url}
+    target="_blank"
+    rel="noreferrer"
+    className="badge-soft badge-soft-brand mb-3 d-inline-flex text-decoration-none"
+  >
+    ▶️ Watch lesson video
+  </a>
+)}
 
-      {user?.role === 'student' && (
-        <div className="form-check mt-4">
-          <input
-            className="form-check-input"
-            type="checkbox"
-            checked={completed}
-            onChange={handleToggleComplete}
+        <p style={{ whiteSpace: 'pre-wrap', color: 'var(--ink-700)', lineHeight: 1.7 }}>{lesson.content}</p>
+
+        {user?.role === 'student' && (
+          <button
+            className={`btn mt-3 ${completed ? 'btn-outline-primary' : 'btn-success'}`}
+            onClick={handleToggleComplete}
             disabled={saving}
-            id="completeCheck"
-          />
-          <label className="form-check-label" htmlFor="completeCheck">
-            Mark this lesson as completed
-          </label>
-        </div>
-      )}
+          >
+            {completed ? '✓ Completed — mark as incomplete' : 'Mark as completed'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

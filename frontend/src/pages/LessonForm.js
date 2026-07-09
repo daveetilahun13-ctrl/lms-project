@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 
-// Shared component for both "Add Lesson" (courseId in URL) and
-// "Edit Lesson" (lessonId in URL) - mirrors the CourseForm pattern.
 export default function LessonForm() {
   const { courseId, lessonId } = useParams();
   const isEdit = Boolean(lessonId);
@@ -37,7 +35,7 @@ export default function LessonForm() {
         await api.put(`/lessons/${lessonId}`, payload);
         navigate(`/courses/${resolvedCourseId}`);
       } else {
-        await api.post(`/courses/${courseId}/lessons`, payload);
+        await api.post(`/lessons/course/${courseId}`, payload);
         navigate(`/courses/${courseId}`);
       }
     } catch (err) {
@@ -46,43 +44,49 @@ export default function LessonForm() {
   }
 
   return (
-    <div className="container" style={{ maxWidth: '600px' }}>
-      <h2 className="mb-4">{isEdit ? 'Edit Lesson' : 'Add Lesson'}</h2>
-      {error && <div className="alert alert-danger">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <label className="form-label">Title</label>
-          <input className="form-control" value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </div>
-        <div className="mb-3">
-          <label className="form-label">Content</label>
-          <textarea
-            className="form-control"
-            rows="6"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-          />
-        </div>
-        <div className="mb-3">
-          <label className="form-label">Video URL (optional)</label>
-          <input
-            className="form-control"
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
-            placeholder="https://..."
-          />
-        </div>
-        <div className="mb-3">
-          <label className="form-label">Order</label>
-          <input
-            type="number"
-            className="form-control"
-            value={orderIndex}
-            onChange={(e) => setOrderIndex(e.target.value)}
-          />
-        </div>
-        <button className="btn btn-primary">{isEdit ? 'Save Changes' : 'Add Lesson'}</button>
-      </form>
+    <div className="page-shell" style={{ maxWidth: 640 }}>
+      <Link to={`/courses/${resolvedCourseId}`} className="nav-pill mb-3 d-inline-block" style={{ color: 'var(--brand-600)' }}>
+        &larr; Back to course
+      </Link>
+      <div className="orbit-card p-4">
+        <div className="eyebrow">{isEdit ? 'Edit' : 'New'}</div>
+        <h2 className="mb-4">{isEdit ? 'Edit Lesson' : 'Add Lesson'}</h2>
+        {error && <div className="alert alert-danger">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="mb-3">
+            <label className="form-label">Title</label>
+            <input className="form-control" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </div>
+          <div className="mb-3">
+            <label className="form-label">Content</label>
+            <textarea
+              className="form-control"
+              rows="6"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label">Video URL (optional)</label>
+            <input
+              className="form-control"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+          <div className="mb-4">
+            <label className="form-label">Order</label>
+            <input
+              type="number"
+              className="form-control"
+              value={orderIndex}
+              onChange={(e) => setOrderIndex(e.target.value)}
+            />
+          </div>
+          <button className="btn btn-primary w-100">{isEdit ? 'Save Changes' : 'Add Lesson'}</button>
+        </form>
+      </div>
     </div>
   );
 }
