@@ -1,6 +1,6 @@
-# Learning Management System (LMS)
+# ኑ እንማር (Nu Inmar) — Learning Management System
 
-A full-stack LMS built with Node.js/Express/MySQL (backend, MVC architecture,
+A full-stack LMS built with Node.js/Express/PostgreSQL (backend, MVC architecture,
 REST API, JWT auth) and React/React Router/Axios/Bootstrap (frontend).
 
 ## Features
@@ -20,7 +20,7 @@ REST API, JWT auth) and React/React Router/Axios/Bootstrap (frontend).
 
 | Layer      | Technology                                   |
 |------------|-----------------------------------------------|
-| Backend    | Node.js, Express.js, MySQL (mysql2), JWT, bcrypt, Morgan |
+| Backend    | Node.js, Express.js, PostgreSQL (pg), JWT, bcrypt, Morgan |
 | Frontend   | React, React Router, Axios, Bootstrap 5       |
 | Architecture | MVC (Models / Controllers / Routes), REST API |
 
@@ -29,7 +29,7 @@ REST API, JWT auth) and React/React Router/Axios/Bootstrap (frontend).
 ```
 lms-project/
 ├── backend/
-│   ├── config/db.js              # MySQL connection pool
+│   ├── config/db.js              # PostgreSQL connection pool
 │   ├── models/                   # DB access layer (one file per table)
 │   ├── controllers/              # Request handling + business logic
 │   ├── routes/                   # Express routers
@@ -49,9 +49,13 @@ lms-project/
 
 ### 1. Database
 
+```bash
+psql -U postgres
+```
 ```sql
--- In MySQL shell / Workbench:
-SOURCE backend/database/schema.sql;
+CREATE DATABASE lms_db;
+\c lms_db
+\i backend/database/schema.sql
 ```
 
 ### 2. Backend
@@ -60,11 +64,23 @@ SOURCE backend/database/schema.sql;
 cd backend
 npm install
 cp .env.example .env
-# edit .env with your MySQL credentials and a real JWT_SECRET
+# edit .env with your PostgreSQL credentials and a real JWT_SECRET
 npm run dev
 ```
 
 Backend runs at `http://localhost:5000`.
+
+Required `.env` variables:
+```
+PORT=5000
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
+DB_NAME=lms_db
+JWT_SECRET=replace_this_with_a_long_random_string
+JWT_EXPIRES_IN=1d
+```
 
 ### 3. Frontend
 
@@ -118,7 +134,7 @@ Frontend runs at `http://localhost:3000`.
 
 See `backend/database/schema.sql` for full DDL. Summary:
 
-- **users** — id, name, email (unique), password (bcrypt hash), role (enum)
+- **users** — id, name, email (unique), password (bcrypt hash), role (`student`/`instructor`, enforced via CHECK constraint)
 - **courses** — id, title, description, instructor_id (FK → users)
 - **lessons** — id, course_id (FK → courses), title, content, video_url, order_index
 - **enrollments** — id, student_id (FK → users), course_id (FK → courses), unique(student_id, course_id)
@@ -129,4 +145,4 @@ See `backend/database/schema.sql` for full DDL. Summary:
 - Passwords are never stored or logged in plain text (`bcrypt.hash`, 10 salt rounds).
 - JWT secret and DB credentials are kept out of source control via `.env` (gitignored); `.env.example` documents required variables.
 - Morgan logs every HTTP request (method, path, status, response time) to the console in dev mode.
-- All database access goes through parameterized queries (`?` placeholders) to prevent SQL injection.
+- All database access goes through parameterized queries (`$1, $2, ...` placeholders) to prevent SQL injection.
